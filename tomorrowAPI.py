@@ -1,11 +1,16 @@
 from datetime import datetime, timedelta
-import requests
-import json
-import os
+from time import strftime
+from decouple import config
+import requests, json
 
-apiUrl = "https://api.tomorrow.io/v4/timelines"
-apiKey = os.environ['tomorrowAPIKey']
-locationId = "620678a05eca870007bde691"
+# constants
+API_URL = "https://api.tomorrow.io/v4/timelines"
+API_KEY = config('tomorrowAPIKey')
+HEADERS = {"Accept": "application/json"}
+LOCATION_ID = "620678a05eca870007bde691"
+TIMESTAMP_FORMAT ='%Y-%m-%dT%H:%M:%SZ'
+
+
 fields = [
   "precipitationIntensity",
   "precipitationType",
@@ -20,21 +25,26 @@ fields = [
 units = "metric"
 timesteps = ["current"]
 
-now = datetime.now()
-startTime = now.isoformat()
-endTime = (now + timedelta(days=1)).isoformat()
-
+now = datetime.utcnow()
+startTime = now.strftime(TIMESTAMP_FORMAT)
+endTime = (now + timedelta(days=1)).strftime(TIMESTAMP_FORMAT)
 timezone = "Eire"
 
-
 def main():
-    requestUrl = apiUrl + '?' + 'location=' + locationId +'&units=' + units + '&fields=' + '&fields='.join(fields) + '&timesteps=' + '&timesteps='.join(timesteps) + '&apikey=' + apiKey
-    headers = {"Accept": "application/json"}
-    print(requestUrl)
-    response = requests.request("GET", requestUrl, headers=headers)  
+
+    # GET DAILY FORECAST
+    dayRequestUrl = API_URL + '?' + 'location=' + LOCATION_ID +'&units=' + units + '&fields=' + '&fields=weatherCodeFullDay&fields=sunriseTime&fields=sunsetTime' + '&timesteps=1d' + "&startTime=" + startTime + "&endTime=" + endTime + '&apikey=' + API_KEY
+    dayResponse = requests.request("GET", dayRequestUrl, headers=HEADERS)  
+    dayResponseJson = json.loads(dayResponse.text)
+    print(dayResponseJson)
+    print("######################")
+    # GET CURRENT WEATHER FORECAST 
+    currentRequestUrl = API_URL + '?' + 'location=' + LOCATION_ID +'&units=' + units + '&fields=' + '&fields='.join(fields) + '&timesteps=' + '&timesteps='.join(timesteps) + '&apikey=' + API_KEY
+    response = requests.request("GET", currentRequestUrl, headers=HEADERS)  
     responseJson = json.loads(response.text)
     print(responseJson)
   
+    dayData = dayResponseJson['data']['timelines'][0]['intervals'][0]['values']
     data = responseJson['data']['timelines'][0]['intervals'][0]['values']
     # wind speed
     print("Wind Speed: " + str(data['windSpeed']) + "km/h")
@@ -52,8 +62,12 @@ def main():
 
     # convert weather code to string representation
     print("Weather Code: " + getWeatherFromCode(data['weatherCode']))
-    # get sunrise/sunset values 
 
+    # get sunrise/sunset values 
+    sunriseTime = datetime.strptime(dayData['sunriseTime'], TIMESTAMP_FORMAT).strftime("%H:%M")
+    sunsetTime = datetime.strptime(dayData['sunsetTime'], TIMESTAMP_FORMAT).strftime("%H:%M")
+    print("Sunrise: " + sunriseTime)
+    print("Sunset: " + sunsetTime)
 
 def getPrecipitationType(code):
   match code:
