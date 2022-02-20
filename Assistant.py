@@ -4,9 +4,8 @@ import sys
 import os
 import logging
 
-# configure local dirs
-picdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pic')
-fontdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'fonts')
+# configure font dir
+fontdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'fonts')
 
 # add local packages to path
 libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
@@ -14,35 +13,41 @@ if os.path.exists(libdir):
     sys.path.append(libdir)
 
 from waveshare_epd import epd2in7b
+from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 from gpiozero import Button
 from signal import pause
 
+bFont = ImageFont.truetype(os.path.join(fontdir, 'Bangers.ttf'), 18)
+regFont = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 18)
 
-# Print a message to the screen
-# @params string
-def printToDisplay(string):
-    # Drawing on the Horizontal image. We must create an image object for both
-    # the black layer and the red layer, even if we are only printing
-    # to one layer
-    # display size: 298*126
+
+def mainScreen():
+    # Create images, one for each layer - black and red
     HBlackImg = Image.new('1', (epd2in7b.EPD_HEIGHT, epd2in7b.EPD_WIDTH), 255)
     HRedImg = Image.new('1', (epd2in7b.EPD_HEIGHT, epd2in7b.EPD_WIDTH), 255)
-
-    # create a draw object and the font object we will use for the display
-    draw = ImageDraw.Draw(HBlackImg)
-    font = ImageFont.truetype(os.path.join(picdir, 'Font.ttc'), 18)
-    bangersFont = ImageFont.truetype(os.path.join(picdir, 'Bangers.ttc'), 18)
-
-    # draw the text to the display. First argument is starting location
-    # of the text in pixels
-    draw.text((25, 65), string, font=font, fill=0)
-
-    # Add the images to the display. Both the black and red layers need to
-    # be passed in, even if we did not add anything to one of them
+    # Create draw objects
+    drawblack = ImageDraw.Draw(HBlackImg)
+    drawred = ImageDraw.Draw(HRedImg)
+    # Add content to the images
+    currentDateTime = datetime.now().strftime("%d/%m/%Y %H:%M")
+    drawblack.text((15, 0), currentDateTime, font=bFont, fill=0)
+    drawred.text((10, 20), 'TODO:', font=bFont, fill=0)
+    drawblack.text((15, 60), 'get weather', font=bFont, fill=0)
+    drawblack.text((15, 80), 'get tasks', font=bFont, fill=0)
+    drawblack.text((15, 100), 'partial refresh', font=bFont, fill=0)
+    # Render the images on the display
+    # Both the black and red layers need to be passed in
     epd.display(epd.getbuffer(HBlackImg), epd.getbuffer(HRedImg))
-    # use line below to save to file instead
-    # HBlackImg.save(fileName)
+
+
+def weatherDetailsScreen():
+    HBlackImg = Image.new('1', (epd2in7b.EPD_HEIGHT, epd2in7b.EPD_WIDTH), 255)
+    HRedImg = Image.new('1', (epd2in7b.EPD_HEIGHT, epd2in7b.EPD_WIDTH), 255)
+    drawred = ImageDraw.Draw(HRedImg)
+    # Add content to the images
+    drawred.text((15, 0), "Weather Details", font=bFont, fill=0)
+    epd.display(epd.getbuffer(HBlackImg), epd.getbuffer(HRedImg))
 
 
 def handleBtnPress(btn):
@@ -50,17 +55,17 @@ def handleBtnPress(btn):
     pinNum = btn.pin.number
 
     # The number represents the pin number and
-    # the value is the message we will print
+    # the value is the image we want to render
     switcher = {
-        5:  "Button 1",
-        6:  "Button 2",
-        13: "Button 3",
-        19: "Button 4"
+        5:  mainScreen,
+        6:  weatherDetailsScreen,
+        13: weatherDetailsScreen,
+        19: weatherDetailsScreen
     }
 
-    # get the string based on the passed in button and send it to printToDisplay()
-    msg = switcher.get(pinNum, "Error")
-    printToDisplay(msg)
+    # get the screen to render based on the passed in button
+    renderScreen = switcher.get(pinNum, lambda: 'Invalid')
+    renderScreen()
 
 
 try:
@@ -80,6 +85,7 @@ try:
     btn2.when_pressed = handleBtnPress
     btn3.when_pressed = handleBtnPress
     btn4.when_pressed = handleBtnPress
+    # Continue running the app to allow for button press handling
     pause()
 
 except IOError as e:
